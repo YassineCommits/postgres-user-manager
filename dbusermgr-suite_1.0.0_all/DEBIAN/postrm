@@ -1,0 +1,33 @@
+#!/bin/bash
+set -e
+case "$1" in
+    purge)
+        echo "Purging configuration files for dbusermgr-suite..."
+        rm -rf "/etc/dbusermgr" || echo "Could not remove /etc/dbusermgr"
+        echo "Log files in /var/log/dbusermgr may need to be removed manually."
+    ;;
+    remove|upgrade|deconfigure)
+        echo "Removing dbusermgr-suite..."
+        ACTUAL_SYSTEMD_PATH="/etc/systemd/system/dbusermgr-task@.service" 
+        if [ -f "${ACTUAL_SYSTEMD_PATH}" ]; then
+            rm -f "${ACTUAL_SYSTEMD_PATH}"
+            echo "Removed systemd service file: ${ACTUAL_SYSTEMD_PATH}"
+            systemctl daemon-reload || echo "Failed to reload systemd daemon. Run 'systemctl daemon-reload' manually."
+        fi
+        EXAMPLE_SYSTEMD_PATH="/etc/systemd/system/dbusermgr-task@.service.example"
+        if [ -f "${EXAMPLE_SYSTEMD_PATH}" ]; then
+             rm -f "${EXAMPLE_SYSTEMD_PATH}"
+             echo "Removed example systemd service file: ${EXAMPLE_SYSTEMD_PATH}"
+        fi
+
+        echo "Configuration files in /etc/dbusermgr and log files in /var/log/dbusermgr were not removed."
+        echo "Remove them manually if they are no longer needed."
+    ;;
+    failed-upgrade)
+    ;;
+    *)
+        echo "postrm called with unknown argument `$1'" >&2
+        exit 1
+    ;;
+esac
+exit 0

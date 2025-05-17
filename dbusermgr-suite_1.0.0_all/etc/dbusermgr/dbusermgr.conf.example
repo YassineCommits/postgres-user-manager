@@ -1,0 +1,7 @@
+# config/dbusermgr.conf.example
+# Example configuration for dbusermgr tool.
+# When installed, this will be at /etc/dbusermgr/dbusermgr.conf.example
+# Copy to /etc/dbusermgr/dbusermgr.conf and customize.
+
+LOG_FILE="/var/log/dbusermgr/dbusermgr.log"
+LOG_LEVEL="INFO" # DEBUG, INFO, WARN, ERROR

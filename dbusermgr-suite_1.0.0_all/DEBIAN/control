@@ -1,0 +1,9 @@
+Package: dbusermgr-suite
+Version: 1.0.0
+Architecture: all
+Maintainer: Your Name or Organization <your-email@example.com>
+Depends: bash (>= 4.0), docker.io | docker-ce | docker-ee, coreutils
+Description: Database User Management Suite CLI
+ A command-line tool for managing database users (e.g., PostgreSQL)
+ running in Docker containers. It provides a unified interface for common
+ user management tasks.

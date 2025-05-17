@@ -1,0 +1,56 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        echo "Configuring dbusermgr-suite..."
+        # Create log directory if it doesn't exist
+        LOG_DIR_APP="/var/log/dbusermgr" # Path embedded from build script
+        if [ ! -d "${LOG_DIR_APP}" ]; then
+            mkdir -p "${LOG_DIR_APP}"
+            chown root:root "${LOG_DIR_APP}"
+            chmod 0755 "${LOG_DIR_APP}"
+            echo "Created log directory: ${LOG_DIR_APP}"
+        fi
+
+        # Create config directory if it doesn't exist
+        ETC_DIR_APP="/etc/dbusermgr" # Path embedded
+        if [ ! -d "${ETC_DIR_APP}" ]; then
+            mkdir -p "${ETC_DIR_APP}"
+            chmod 0755 "${ETC_DIR_APP}"
+            echo "Created config directory: ${ETC_DIR_APP}"
+        fi
+        
+        # Copy example config if actual config doesn't exist
+        EXAMPLE_CONFIG_PATH="${ETC_DIR_APP}/dbusermgr.conf.example"
+        ACTUAL_CONFIG_PATH="${ETC_DIR_APP}/dbusermgr.conf" # Actual name
+        if [ -f "${EXAMPLE_CONFIG_PATH}" ] && [ ! -f "${ACTUAL_CONFIG_PATH}" ]; then
+            cp "${EXAMPLE_CONFIG_PATH}" "${ACTUAL_CONFIG_PATH}"
+            chmod 0644 "${ACTUAL_CONFIG_PATH}"
+            echo "Copied example configuration to ${ACTUAL_CONFIG_PATH}."
+            echo "Please review and customize ${ACTUAL_CONFIG_PATH} as needed."
+        fi
+
+        # Copy example systemd unit if actual doesn't exist
+        EXAMPLE_SYSTEMD_PATH="/etc/systemd/system/dbusermgr-task@.service.example" # Path embedded
+        ACTUAL_SYSTEMD_PATH="/etc/systemd/system/dbusermgr-task@.service" # Actual name
+         if [ -f "${EXAMPLE_SYSTEMD_PATH}" ] && [ ! -f "${ACTUAL_SYSTEMD_PATH}" ]; then
+            cp "${EXAMPLE_SYSTEMD_PATH}" "${ACTUAL_SYSTEMD_PATH}"
+            chmod 0644 "${ACTUAL_SYSTEMD_PATH}"
+            echo "Copied example systemd unit to ${ACTUAL_SYSTEMD_PATH}."
+            echo "To use, enable specific instances: systemctl enable dbusermgr-task@myinstance.service"
+        fi
+        
+        echo "Reloading systemd daemon..."
+        systemctl daemon-reload || echo "Failed to reload systemd daemon. Run 'systemctl daemon-reload' manually."
+
+        echo "dbusermgr-suite configuration complete."
+    ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+    *)
+        echo "postinst called with unknown argument `$1'" >&2
+        exit 1
+    ;;
+esac
+exit 0

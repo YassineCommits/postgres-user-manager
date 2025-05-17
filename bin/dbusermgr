@@ -1,0 +1,28 @@
+#!/bin/bash
+# bin/dbusermgr - Database User Management CLI Tool
+
+UTILS_SCRIPT_PATH="/usr/local/lib/dbusermgr/utils.sh"
+HANDLERS_BASE_DIR="/usr/local/lib/dbusermgr/handlers" 
+
+if [ ! -f "$UTILS_SCRIPT_PATH" ] && [ -f "$(dirname "$0")/../lib/dbusermgr/utils.sh" ]; then
+    UTILS_SCRIPT_PATH="$(dirname "$0")/../lib/dbusermgr/utils.sh"
+    HANDLERS_BASE_DIR="$(dirname "$0")/../lib/dbusermgr/handlers"
+    echo "[DEV MODE] Using local utils.sh: $UTILS_SCRIPT_PATH" >&2
+fi
+if [ -f "$UTILS_SCRIPT_PATH" ]; then source "$UTILS_SCRIPT_PATH"; else echo "[FATAL] dbusermgr: utils.sh missing. Tried: /usr/local/lib/dbusermgr/utils.sh and local dev path." >&2; exit 127; fi
+
+DB_TYPE="" DB_VERSION="" DB_CONTAINER_BASE_NAME="" DB_ADMIN_USER="" DB_ADMIN_PASS="" DB_NAME_CONN="" 
+ASK_ADMIN_PASSWORD=false; COMMAND_ARGS=() 
+usage(){ echo "Usage: $0 [global_opts] <command> [cmd_opts]";echo "Global: --db-type <t> --container-name <base> --db-admin-user <u> [--db-admin-pass <p>] [--ask-admin-password] [--db-name <db>] [-h]";echo "Cmds (PG ex): create-user, delete-user, list-users, alter-user, grant-privs, revoke-privs"; }
+if [ $# -eq 0 ]; then usage; exit 0; fi
+while [[ $# -gt 0 ]]; do case "$1" in --db-type) DB_TYPE="$2";shift 2;;--container-name) DB_CONTAINER_BASE_NAME="$2";shift 2;;--db-admin-user) DB_ADMIN_USER="$2";shift 2;;--db-admin-pass) DB_ADMIN_PASS="$2";shift 2;;--ask-admin-password) ASK_ADMIN_PASSWORD=true;shift;;--db-name) DB_NAME_CONN="$2";shift 2;;-h|--help) usage;exit 0;;--) shift;COMMAND_ARGS=("$@");break;;-*) log_error "Unk global: $1";usage;exit 1;;*) COMMAND_ARGS=("$@");break;;esac;done
+DB_MANAGEMENT_COMMAND="${COMMAND_ARGS[0]}"; if [ ${#COMMAND_ARGS[@]} -gt 0 ]; then COMMAND_SPECIFIC_ARGS=("${COMMAND_ARGS[@]:1}"); else COMMAND_SPECIFIC_ARGS=(); fi
+if [ -z "$DB_TYPE" ]||[ -z "$DB_CONTAINER_BASE_NAME" ]||[ -z "$DB_ADMIN_USER" ]||[ -z "$DB_MANAGEMENT_COMMAND" ]; then log_error "Required global options or command missing.";usage;exit 1;fi
+if ! command_exists docker; then log_error "Docker missing.";exit 127;fi
+log_info "Looking for container starting with: ${DB_CONTAINER_BASE_NAME}"; FOUND_CONTAINERS=$(docker ps --filter "name=^/${DB_CONTAINER_BASE_NAME}" --format "{{.Names}}" --no-trunc); NUM_FOUND=$(echo "$FOUND_CONTAINERS"|wc -l|xargs); FULL_CONTAINER_NAME=""
+if [ -z "$FOUND_CONTAINERS" ]; then log_error "No container found starting with '$DB_CONTAINER_BASE_NAME'."; exit 1; elif [ "$NUM_FOUND" -gt 1 ]; then log_error "Multiple containers found:\n$FOUND_CONTAINERS"; exit 1; else FULL_CONTAINER_NAME="$FOUND_CONTAINERS"; log_info "Found: $FULL_CONTAINER_NAME"; fi
+case "$DB_TYPE" in postgres) DB_NAME_CONN="${DB_NAME_CONN:-postgres}"; HANDLER_FUNCTION="handle_postgres_command";; *) log_error "DBType '$DB_TYPE' unsupp."; exit 1;; esac
+if $ASK_ADMIN_PASSWORD && [ -n "$DB_ADMIN_PASS" ]; then log_warn "Using --db-admin-pass."; elif $ASK_ADMIN_PASSWORD; then if ! get_password DB_ADMIN_PASS "Pass for DB user '$DB_ADMIN_USER' (cont '$FULL_CONTAINER_NAME')"; then exit 1; fi; elif [ -z "$DB_ADMIN_PASS" ]; then if [ -n "$DBMGR_ADMIN_PASS" ]; then DB_ADMIN_PASS="$DBMGR_ADMIN_PASS";log_debug "Using DBMGR_ADMIN_PASS."; elif [ "$DB_ADMIN_USER" != "postgres" ] && [ -t 0 ]; then log_info "Pass not provided for non-default '$DB_ADMIN_USER'."; if ! get_password DB_ADMIN_PASS "Pass for DB user '$DB_ADMIN_USER' (cont '$FULL_CONTAINER_NAME')"; then exit 1; fi; fi; fi
+HANDLER_SCRIPT="${HANDLERS_BASE_DIR}/${DB_TYPE}_handler.sh"; log_debug "Loading handler: $HANDLER_SCRIPT"; if [ ! -f "$HANDLER_SCRIPT" ]; then log_error "Handler missing: $HANDLER_SCRIPT"; exit 1; fi
+source "$HANDLER_SCRIPT"; if ! command_exists "$HANDLER_FUNCTION"; then log_error "Handler func '$HANDLER_FUNCTION' missing in '$HANDLER_SCRIPT'."; exit 1; fi
+log_info "Dispatching '$DB_MANAGEMENT_COMMAND' to '$DB_TYPE' for '$FULL_CONTAINER_NAME'..."; "$HANDLER_FUNCTION" "$FULL_CONTAINER_NAME" "$DB_ADMIN_USER" "$DB_ADMIN_PASS" "$DB_NAME_CONN" "$DB_MANAGEMENT_COMMAND" "${COMMAND_SPECIFIC_ARGS[@]}"; exit $?

@@ -1,0 +1,20 @@
+# systemd/dbusermgr-task@.service.example
+# Example systemd template unit for running dbusermgr commands as one-shot tasks.
+[Unit]
+Description=Database User Management Task (%I)
+Documentation=man:dbusermgr(8) 
+After=docker.service
+Requires=docker.service 
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/bin/bash -c "exec /usr/local/sbin/dbusermgr $(echo %I | tr '-' ' ')"
+StandardOutput=journal
+StandardError=journal
+# EnvironmentFile=-/etc/dbusermgr/dbusermgr.conf
+# User=dbmgruser 
+# Group=dbmgrgroup
+
+[Install]
+# WantedBy=multi-user.target 
